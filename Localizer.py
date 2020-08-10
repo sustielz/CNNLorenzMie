@@ -3,7 +3,9 @@
 
 import CNNLorenzMie.darknet as darknet
 import os
+import numpy as np 
 
+from pylorenzmie.analysis import Frame, Video
 
 class Localizer(object):
 
@@ -53,19 +55,25 @@ class Localizer(object):
         per holo prediction:
              {'conf': 50%, 'bbox': (x_centroid, y_centroid, width, height)}
         '''
-
-        predictions = []
-        for image in img_list:
-            yolopred = darknet.detect(
-                self.net, self.meta, image, self.threshold, self.nms)
-            imagepreds = []
+                
+    def predict(self, frame):
+        if isinstance(frame, np.ndarray):
+            yolopred = darknet.detect(self.net, self.meta, frame, self.threshold, self.nms)
+            predictions = []
             for pred in yolopred:
                 (label, conf, bbox) = pred
-                imagepreds.append({'label': label, 'conf': conf, 'bbox': bbox})
-            predictions.append(imagepreds)
-        return predictions
-
-
+                predictions.append({'label': label, 'conf': conf, 'bbox': bbox})
+            return predictions
+        #### note: try returning one dict {'labels', 'conf', 'bboxes'}
+        elif isinstance(frame, Frame):
+            preds = self.predict(frame.image)
+            frame.add(bboxes=[pred['bbox'] for pred in preds])
+            return preds
+        elif isinstance(frame, list):
+            return [self.predict(iframe) for iframe in frame]
+        elif isinstance(frame, Video):
+            return self.predict(frame.frames)
+            
 if __name__ == '__main__':
     import cv2
     from matplotlib import pyplot as plt
