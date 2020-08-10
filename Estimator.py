@@ -151,14 +151,13 @@ class Estimator(object):
 
     def predict(self, img_list=[], scale_list=[], feature_list=None):
         if isinstance(img_list, str):
-            img_names_path = img_list:
+            img_names_path = img_list
             with open(img_names_path, 'r') as f:
                 lines = f.readlines()
             for line in lines:
                 filename = line.rstrip()
                 img_local = np.array(Image.open(filename))
-                crop_img.append(img_local)
-            def predict(self, img_list=[], scale_list=[], feature_list=None):
+                img_list.append(img_local)
         imgs = np.array(img_list)
         scales = np.array(scale_list)
         if imgs.size == 0: #empty list case
