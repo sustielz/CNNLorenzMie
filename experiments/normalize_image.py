@@ -18,9 +18,22 @@ norm_images/image0001.png
 in order of frames
 '''
 
-
-
-def normalize_video(bg_path, vid_path, save_folder = './norm_images/', order = 2, return_images = False):
+def normalize_video(vid_path, save_folder = 'norm_images/', order = 2, return_images = False):
+    if '/' in vid_path:
+        vid_dir = vid_path.split('/')
+        bg_path = '/'.join(vid_dir[:-1]) + '/background.avi'
+        if vid_dir[-2] == 'videos':
+            vid_dir.pop(-2)
+        save_path = '/'.join(vid_dir)
+    else:
+        bg_path = 'background.avi'
+        save_path = vid_path
+        
+    save_path = save_path.split('.avi')[0]          #### Create folder with same name as video name
+    save_path = save_path.replace('//', '/')
+    save_path = '/'.join([save_path, save_folder])    #### Create subfolder for normalized images
+    print('video path: {}  |  background path: {}  |  save path: {}'.format(vid_path, bg_path, save_path))
+       
     #get first frame of background
     vidObj = cv2.VideoCapture(bg_path)
     success, img0 = vidObj.read()
@@ -50,10 +63,10 @@ def normalize_video(bg_path, vid_path, save_folder = './norm_images/', order = 2
     '''
 
     print('Opening measurement video')
-
+    
     #make save folder if it doesn't exist
-    if not os.path.exists(save_folder):
-        os.makedirs(save_folder)
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
     
     
     #get videocap object for measurement video
@@ -90,7 +103,7 @@ def normalize_video(bg_path, vid_path, save_folder = './norm_images/', order = 2
             denom = np.clip((bg-dark),1,255)
             testimg = np.divide(numer, denom)*100.
             testimg = np.clip(testimg, 0, 255)
-            filename = os.path.dirname(save_folder) + '/image' + str(count).zfill(4) + '.png'
+            filename = os.path.dirname(save_path) + '/image' + str(count).zfill(4) + '.png'
             cv2.imwrite(filename, testimg)
             testimg = np.stack((testimg,)*3, axis=-1)
             if return_images:
