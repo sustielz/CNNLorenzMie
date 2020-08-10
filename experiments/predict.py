@@ -9,14 +9,6 @@ import sys
 # sys.path.append('/home/group/python/')
 sys.path.append('/home/jackie/Desktop/')
 
-######################## For local computer ##################
-#cnn_path = '/home/jackie/Documents/Github/cleanup'
-#if cnn_path not in sys.path: sys.path.append(cnn_path)
-#    
-#plmie_path = '/home/jackie/Documents/Github/cleanup/CNNLorenzTest'
-#if plmie_path not in sys.path: sys.path.append(plmie_path)
-#############################################################
-
 from pylorenzmie.analysis import Frame, Video
 
 from CNNLorenzMie.Localizer import Localizer
@@ -26,14 +18,10 @@ from CNNLorenzMie.experiments.normalize_image import normalize_video
 from CNNLorenzMie.filters import no_edges, nodoubles
 
 
-
-
 video_path = 'CNNLorenzMie/examples/videos/tobot2_3p157hz100.avi'
 video_path = video_path if np.size(sys.argv) <= 1 else video_path.replace(video_path.split('/')[-1], sys.argv[1])
 
 batch_est = False
-
-
 
 
 loc = Localizer('holo', weights='_100k')
@@ -44,7 +32,6 @@ keras_config_path = keras_head_path+'.json'
 with open(keras_config_path, 'r') as f:
     kconfig = json.load(f)
 est = Estimator(model_path=keras_model_path, config_file=kconfig)
-
 
 myvid = Video(path=video_path)
 if not os.path.exists(myvid.path + '/norm_images'):
@@ -65,16 +52,11 @@ for frame in myvid.frames[:3]:
 # for frame in myvid.frames:
     i += 1
     print('processing frame {} ...'.format(i))
-    
     frame.load()
-    
     loc.predict(frame)
-    
     no_edges(frame)
     nodoubles(frame)
-    
     crop_frame(frame)
-    
     est_imgs, est_scales, est_feats = est_crop_frame(frame, new_shape=est.pixels)
     if batch_est:        
         est_input_imgs.extend(est_imgs)          #### Add to estimator input stack
@@ -83,7 +65,6 @@ for frame in myvid.frames[:3]:
     else:
         est.predict(est_imgs, est_scales, est_feats)
         #frame.serialize(save=True)
-    
     frame.unload()
 
 if batch_est:
