@@ -1,50 +1,96 @@
-from CNNLorenzMie.Estimator import Estimator
-from CNNLorenzMie.experiments.normalize_image import normalize_video
-from CNNLorenzMie.Localizer import Localizer
-from CNNLorenzMie.EndtoEnd import EndtoEnd
-import cv2, json
-from matplotlib import pyplot as plt
+import os
 import numpy as np
-from lmfit import report_fit
-import os, os.path
+import cv2, json
+import matplotlib.pyplot as plt
+from time import time
+import pandas as pd
+
+import sys
+# sys.path.append('/home/group/python/')
+sys.path.append('/home/jackie/Desktop/')
+
+######################## For local computer ##################
+#cnn_path = '/home/jackie/Documents/Github/cleanup'
+#if cnn_path not in sys.path: sys.path.append(cnn_path)
+#    
+#plmie_path = '/home/jackie/Documents/Github/cleanup/CNNLorenzTest'
+#if plmie_path not in sys.path: sys.path.append(plmie_path)
+#############################################################
+
+from pylorenzmie.analysis import Frame, Video
+
+from CNNLorenzMie.Localizer import Localizer
+from CNNLorenzMie.Estimator import Estimator
+from CNNLorenzMie.crop_feature import crop_frame, est_crop_frame
+from CNNLorenzMie.experiments.normalize_image import normalize_video
+from CNNLorenzMie.filters import no_edges, nodoubles
 
 
-vid_path = './videos/your_measurement_vid.avi'
-bkg_path = './videos/your_background_vid.avi'
-
-img_eval = normalize_video(bkg_path, vid_path, save_folder='./norm_images/')
 
 
+video_path = 'CNNLorenzMie/examples/videos/tobot2_3p157hz100.avi'
+video_path = video_path if np.size(sys.argv) <= 1 else video_path.replace(video_path.split('/')[-1], sys.argv[1])
 
-keras_head_path = '../keras_models/predict_stamp_best'
+batch_est = False
+
+
+
+
+loc = Localizer('holo', weights='_100k')
+# keras_head_path = '/home/group/python/CNNLorenzTest/keras_models/predict_stamp_best'
+keras_head_path = '/home/jackie/Desktop/CNNLorenzMie/keras_models/predict_stamp_best'
 keras_model_path = keras_head_path+'.h5'
 keras_config_path = keras_head_path+'.json'
 with open(keras_config_path, 'r') as f:
     kconfig = json.load(f)
-estimator = Estimator(model_path=keras_model_path, config_file=kconfig)
+est = Estimator(model_path=keras_model_path, config_file=kconfig)
 
+
+myvid = Video(path=video_path)
+if not os.path.exists(myvid.path + '/norm_images'):
+    print('normalizing...')
+    normalize_video(video_path)
+else: 
+    print('already normalized')
+myvid.set_frames()
+
+#### Lists to do all of the estimation at once
+est_input_imgs = []
+est_input_scales = []
+est_input_features = []
+
+t0 = time()
+i=0
+for frame in myvid.frames[:3]:
+# for frame in myvid.frames:
+    i += 1
+    print('processing frame {} ...'.format(i))
     
-localizer = Localizer(configuration = 'holo', weights='_100k')
+    frame.load()
+    
+    loc.predict(frame)
+    
+    no_edges(frame)
+    nodoubles(frame)
+    
+    crop_frame(frame)
+    
+    est_imgs, est_scales, est_feats = est_crop_frame(frame, new_shape=est.pixels)
+    if batch_est:        
+        est_input_imgs.extend(est_imgs)          #### Add to estimator input stack
+        est_input_scales.extend(est_scales)
+        est_input_features.extend(est_feats)
+    else:
+        est.predict(est_imgs, est_scales, est_feats)
+        #frame.serialize(save=True)
+    
+    frame.unload()
 
-e2e = EndtoEnd(estimator=estimator, localizer=localizer)
-
-savedict = []
-path = os.getcwd()+'/norm_images'
-numimgs = len([f for f in os.listdir(path)if os.path.isfile(os.path.join(path, f))])
-
-
-#just do one at a time for now
-for i in range(numimgs):
-    filepath = path + '/image' + str(i).zfill(4) + '.png'
-    localim = cv2.imread(filepath)
-    features = e2e.predict(img_list = [localim])[0]
-    for feature in features:
-        localdict = feature.serialize(exclude=['data'])
-        localdict['framenum'] = i
-        localdict['framepath'] = os.path.abspath(filepath)
-        savedict.append(localdict)
-    print('Completed frame {}'.format(i), end='\r')
-
-with open('your_MLpreds.json', 'w') as f:
-    json.dump(savedict, f)
-print('saved ML')
+if batch_est:
+    print('Batch estimating...')
+    est.predict(est_input_imgs, est_input_scales, est_input_features)
+print('finished in {}'.format(time()-t0))
+# t0=time()
+# myvid.serialize(save=True, path='predicted.json')
+# myvid.serialize(save=True, path='predicted_light.json', omit_feat=['data'])
+# print('Serialized in {}'.format(time() - t0))
