@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow.keras as keras
 from tensorflow.keras import backend as K
 from pylorenzmie.theory.Instrument import Instrument
+from pylorenzmie.analysis import Feature, Frame, Video
 import tensorflow as tf
 
 def format_image(img, crop_px):
@@ -148,30 +149,29 @@ class Estimator(object):
         self._model = loaded
         return self
 
-    def predict(self, img_names_path=None, img_list=[], scale_list=[]):
-        crop_img = img_list
-        if not img_names_path is None:
+    def predict(self, img_list=[], scale_list=[], feature_list=None):
+        if isinstance(img_list, str):
+            img_names_path = img_list
             with open(img_names_path, 'r') as f:
                 lines = f.readlines()
             for line in lines:
                 filename = line.rstrip()
                 img_local = np.array(Image.open(filename))
-                crop_img.append(img_local)
-        crop_img = np.array(crop_img)
-        scale_list = np.array(scale_list)
-        if crop_img.size == 0: #empty list case
-            data = {'z_p': [], 'a_p': [], 'n_p': []}
-            return data
-        if crop_img.shape[0] != scale_list.shape[0]: #bad input case
-            raise Exception('Error: unequal number of images ({}) and scales ({})'.format(crop_img.shape[0], scale_list.shape[0]))
-        if crop_img.shape[-1]==3: #if color image, convert to grayscale
-            crop_img = crop_img[:,:,:,0]
-        crop_img, _ = format_image(crop_img, self.pixels)
-        crop_img = crop_img/255.
+                img_list.append(img_local)
+        imgs = np.array(img_list)
+        scales = np.array(scale_list)
+        if imgs.size == 0: #empty list case
+            return {'z_p': [], 'a_p': [], 'n_p': []}
+        if imgs.shape[0] != scales.shape[0]: #bad input case
+            raise Exception('Error: unequal number of images ({}) and scales ({})'.format(imgs.shape[0], scales.shape[0]))
+        if imgs.shape[-1]==3: #if color image, convert to grayscale
+            imgs = imgs[:,:,:,0]
+        imgs, _ = format_image(imgs, self.pixels)
+        imgs = imgs/255.
 
         
         stamp_model = self.model
-        char = stamp_model.predict([crop_img, scale_list])
+        char = stamp_model.predict([imgs, scales])
 
         zmin, zmax = self.params_range['z_p']
         amin, amax = self.params_range['a_p']
@@ -179,13 +179,26 @@ class Estimator(object):
         z_pred = rescale_back(zmin, zmax, char[0])
         a_pred = rescale_back(amin, amax, char[1])
         n_pred = rescale_back(nmin, nmax, char[2])
-        
+
         zsave = [item for sublist in z_pred.tolist() for item in sublist]
         asave = [item for sublist in a_pred.tolist() for item in sublist]
         nsave = [item for sublist in n_pred.tolist() for item in sublist]
-
+              
         data = {'z_p': zsave, 'a_p': asave, 'n_p': nsave}
-
+        if feature_list is not None:
+            if not isinstance(feature_list, list):
+                print('error - feature_list must be of type list')
+#             elif len(feature_list) != len(z_pred.tolist()):
+#                 print('Error - unequal number of features and predictions')
+            else:
+                for i, feat in enumerate(feature_list):
+                    if not isinstance(feat, Feature):
+                        print('error - feature {} not of type Feature')
+                    else:
+                        feat.instrument = self.instrument
+                        feat.model.particle.z_p = zsave[i]
+                        feat.model.particle.a_p = asave[i]
+                        feat.model.particle.n_p = nsave[i]
         return data
 
 

@@ -1,5 +1,5 @@
 import numpy as np
-from itertools import combinations
+from pylorenzmie.analysis import Frame
 
 '''
 filter for use with localizer
@@ -10,20 +10,30 @@ input: list of list of dicts (output of Localizer.predict)
 output: list of list of dicts, with doubles removed
 '''
 
-
-def nodoubles(preds_list=[], tol=5):
-    num_img = len(preds_list)
-    preds_copy = preds_list.copy()
-    for num in range(num_img):
-        img_pred = preds_copy[num]
-        for img1, img2 in combinations(img_pred, 2):
-            x1, y1 = img1['bbox'][:2]
-            x2, y2 = img2['bbox'][:2]
-            dist = np.sqrt((x1-x2)**2 + (y1-y2)**2)
-            if dist<tol and (img1 in img_pred) and (img2 in img_pred):
-                img_pred.remove(img2)
-    return preds_copy
-
+#### Main function
+def nodoubles(frame, tol=5):
+    if isinstance(frame, Frame):
+        toss = _nodoubles(frame.bboxes, tol)
+        frame.remove(toss)
+        return frame.bboxes
+    else:
+        toss = _nodoubles(frame, tol)
+        bboxes = frame.copy()
+        for i in sorted(toss, reverse=True): 
+            bboxes.pop(i)
+        return bboxes
+    
+def _nodoubles(bboxes, tol=5):
+        toss = []
+        for i, bbox1 in enumerate(bboxes):
+            for j, bbox2 in enumerate(bboxes[:i]):
+                x1, y1 = bbox1[:2]
+                x2, y2 = bbox2[:2]
+                dist = np.sqrt((x1-x2)**2 + (y1-y2)**2)
+                if dist<tol:
+                    toss.append(i)
+                    break
+        return toss
 
 if __name__=='__main__':
     import json
@@ -35,4 +45,4 @@ if __name__=='__main__':
     print('Before:{}'.format(xy_preds))
     #the sample predictions were not close
     #using a ridiculous tolerance for demonstration purposes
-    print('After:{}'.format(nodoubles(xy_preds, tol=1000)))
+    print('After:{}'.format(nodoubles([pred['bbox'] for pred in xy_preds], tol=1000)))
